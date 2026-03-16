@@ -90,18 +90,18 @@ float k_force_dATP = args.k_force;
 float k_plus_SR_ref_dATP = args.k_plus_SR_ref;
 float k_minus_SR_ref = args.k_minus_SR_ref;
 
-float k2_plus_ref_ATP = 0.0025; 
-float k3_plus_ATP = 0.05; 
-float k4_plus_ref_ATP = 0.135; 
-float k_plus_SR_ref_ATP = 16;
-float k_force_ATP = 0.2;
+float k2_plus_ref_ATP = 0.0025; // [1/ms] - XB attachment rate (ATP), C -> M1
+float k3_plus_ATP = 0.05;       // [1/ms] - power stroke forward rate (ATP), M1 -> M2
+float k4_plus_ref_ATP = 0.135;  // [1/ms] - XB detachment rate (ATP), M2 -> C
+float k_plus_SR_ref_ATP = 16;   // [1/ms] - SRX to DRX transition rate (ATP)
+float k_force_ATP = 0.2;        // [unitless] - force-feedback coefficient for SR-to-DRX transition (ATP)
 
 //-------------------------------
 //   Set rates using the input arguments
 //-------------------------------
-float r = 1; 
-float q = 1;
-float lambda = 0;
+float r = 1; // [unitless] - XB-XB cooperativity exponent (fixed)
+float q = 1; // [unitless] - RU-RU cooperativity exponent (fixed)
+float lambda = 0; // [unitless, 0-1] - scales Ca2+ unbinding from Ca-bound non-permissive states (0 = no effect)
 // calculating rates for XB cycling - use Tanner 2007/ Daniel 1998/ Pate & Cooke 1989
 float k2_minus_ref, k3_minus, k4_minus_ref;
 float conc_ADP,conc_Pi, conc_ATP, x_preR, g_Ca, g_Cb, g_Mc, g_Md, delta_G_ATP, delta_G, k_xb, x_xb;
@@ -118,8 +118,8 @@ conc_Pi     = 3e3;         //uM
 
 
 // other constants
-float alpha = 0.28; 
-float eta = 0.68; 
+float alpha = 0.28; // [unitless] - fraction of ATP hydrolysis energy allocated to M1 (Mc) state
+float eta = 0.68;   // [unitless] - fraction of ATP hydrolysis energy allocated to M2 (Md) state
 //A = 2000; 
 //B = 100; // all from Tanner et al, 2007.
 //C = 1;
@@ -127,21 +127,21 @@ float eta = 0.68;
 //M = 3600;
 //N = 40;
 //P = 20;
-k_xb = 5; 
+k_xb = 5; // [RT/nm^2] - XB elastic spring constant
 
 delta_G_ATP = 13; // units = RT
 delta_G = delta_G_ATP - log(conc_ATP/(conc_ADP*conc_Pi)); // units = RT
 
-x_preR      = 0; // XB distortion when pre-rotated.
-x_xb        = 0.075;        // nm, XB distortion
+x_preR      = 0;      // [nm] XB distortion in pre-power-stroke (pre-rotated) state
+x_xb        = 0.075; // [nm] XB distortion in post-power-stroke (Md) state
 //x_b0        = eta * delta_G / k_xb; // xb distortion due to ATP hydrolysis
 
 
 
-g_Cb    =  0                                    ;//free energy of XB state Cb
-g_Mc    = alpha * delta_G + k_xb * (x_preR)     ;//free energy of XB state Mc
-g_Md    = eta* delta_G + k_xb*pow(x_xb,2)       ;//free energy of XB state Md
-g_Ca    =   g_Cb                                ;//free energy of XB state Ca
+g_Cb    =  0                                    ;// [RT] free energy of XB state Cb (detached, reference = 0)
+g_Mc    = alpha * delta_G + k_xb * (x_preR)     ;// [RT] free energy of XB state Mc (weakly-bound M1)
+g_Md    = eta* delta_G + k_xb*pow(x_xb,2)       ;// [RT] free energy of XB state Md (strongly-bound M2)
+g_Ca    =   g_Cb                                ;// [RT] free energy of XB state Ca (same as Cb)
 
 
 // to get reverse values, keep in mind that rij/rji = e^(gi - gj)
@@ -151,11 +151,11 @@ g_Ca    =   g_Cb                                ;//free energy of XB state Ca
 //kCa_minus_ref   = 0.113;                    //X_kCa_minus_ref_PSO[i];
 //kB_minus_ref    = 0.327;                    //X_kB_minus_ref_PSO[i];
 //k2_plus_ref     = A * pow(k_xb/2*M_PI,0.5)*exp(-k_xb*pow(x_preR-x_b0,2)/2); // from tanner 2007
-k2_minus_ref    = k2_plus_ref_ATP/ exp(g_Cb - g_Mc);//0.5 / exp(g_Cb - g_Mc);    //using vals from optimization_0227 (k2_plus = 0.615440)
+k2_minus_ref    = k2_plus_ref_ATP/ exp(g_Cb - g_Mc); // [1/ms] using vals from optimization_0227 (k2_plus = 0.615440)
 //k3_plus         = (B/pow(k_xb,.5))*(1-tanh(C*pow(k_xb,.5)*(x_xb-x_b0)))+D;        //X_k3_plus_PSO[i];
-k3_minus        = k3_plus_ATP / exp(g_Mc - g_Md) ;//0.3 / exp(g_Mc - g_Md);  //
+k3_minus        = k3_plus_ATP / exp(g_Mc - g_Md) ;// [1/ms] reverse power stroke, M2 -> M1
 //k4_plus_ref     = pow(k_xb,0.5)*(pow(M*pow(x_xb,2),0.5)-N*x_xb)+ P;                 //X_k4_plus_PSO[i];
-k4_minus_ref    = k4_plus_ref_ATP * exp(g_Ca - g_Md - delta_G);
+k4_minus_ref    = k4_plus_ref_ATP * exp(g_Ca - g_Md - delta_G); // [1/ms] XB reattachment, C -> M2
 
 //-------------------------------------
 // Call the transition rates function:
@@ -191,9 +191,9 @@ k4_minus
     //-----------------------------------------------------
 
     float Ftemp        = 0.0;                      // is used to calculate the steady-state force at the end
-    float Cal_conc           = pow(10.0f,-(args.experimentalData[cc].first-6));     // Ca2+ concentration
-    float kCa_plus     = Cal_conc*kCa_plus_ref;
-    float kCa_minus    = kCa_minus_ref;
+    float Cal_conc     = pow(10.0f,-(args.experimentalData[cc].first-6)); // [uM] Ca2+ concentration (pCa=6 -> 1 uM)
+    float kCa_plus     = Cal_conc*kCa_plus_ref;  // [1/ms] = [uM]*[1/(uM*ms)] - Ca2+ on rate
+    float kCa_minus    = kCa_minus_ref;           // [1/ms] - Ca2+ off rate
     const int n_pCa = args.experimentalData.size();
     
     
